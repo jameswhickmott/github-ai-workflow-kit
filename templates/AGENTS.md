@@ -12,6 +12,15 @@ This repo uses an AI-assisted workflow for issue triage, planning, and developme
 
 ## Commands
 
+### Error Handling
+When executing `gh` or `git` commands, handle common failures:
+- **`gh` auth errors**: Prompt user to authenticate with `gh auth login`
+- **GitHub rate limits**: Wait 1-2 minutes and retry, or check remaining limits with `gh api rate_limit`
+- **Missing workflow labels**: Ensure the repo has all required labels: `ai:triage`, `human:review-triage`, `ai:plan`, `human:review-plan`, `ai:develop`, `pr:created`, `ai:blocked`. Create missing labels with `gh label create`
+- **Label remove errors**: If `gh issue edit --remove-label` fails (label not present), append `|| true` to ignore the error
+- **Git branch conflicts**: If `git checkout -b` fails because the branch exists, use `git checkout -B` to reset it (as done in `develop` command)
+- **Irrecoverable failures**: If a workflow step fails and cannot be resolved, set the `ai:blocked` label on the issue and post a comment with error details
+
 ### `status`
 
 Print a summary of all open issues grouped by workflow stage.
@@ -120,7 +129,7 @@ Deduplicate and process each.
 
 ---
 
-### `re-triage [issue number]`
+### `retriage [issue number]` (also `re-triage`)
 
 Use when a human has answered open questions in comments and triage needs to be revisited.
 
@@ -236,15 +245,54 @@ gh issue edit {n} --remove-label "ai:plan" --add-label "human:review-plan"
 
 ---
 
+### `replan [issue number]` (also `re-plan`)
+
+Use when a human has provided feedback on a plan and the plan needs to be updated.
+
+1. Infer repo: `gh repo view --json nameWithOwner --jq '.nameWithOwner'`
+2. Fetch issue with comments:
+```bash
+gh issue view {n} --json title,body,comments
+```
+3. Retrieve the previous plan report comment ID and body:
+```bash
+gh api repos/{repo}/issues/{n}/comments --paginate \
+  --jq '[.[] | select(.body | contains("<!-- ai:plan-report -->"))] | last | {id: .id, body: .body}'
+```
+If no previous plan report exists, stop and tell the user to run `plan` first.
+
+4. Analyse the issue, all comments (including human feedback), and the previous plan report. Produce an updated plan report in the same format as `plan`, noting what changed from the previous assessment. Address any human feedback or open questions in the updated plan.
+
+5. Mark the old plan comment as outdated:
+```bash
+gh api repos/{repo}/issues/comments/{prev_comment_id} --method PATCH \
+  -f body="<!-- ai:plan-report:outdated -->
+
+> ⚠️ **Outdated** — superseded by re-plan. See the updated report below."
+```
+
+6. Post the updated plan as a new comment:
+```bash
+gh issue comment {n} --body "<!-- ai:plan-report -->
+
+{plan}"
+```
+7. Transition labels (ensure it is still awaiting human review):
+```bash
+gh issue edit {n} --add-label "human:review-plan"
+```
+
+---
+
 ### `develop [issue number]` or `develop all`
 
 **Single issue:**
 1. Fetch issue: `gh issue view {n} --json title,body`
 2. Retrieve the plan report: find the comment containing `<!-- ai:plan-report -->` (same API call as above). If missing, stop and tell the user planning must be completed first.
 3. Get default branch: `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'`
-4. Create and switch to branch:
+4. Create and switch to branch (use `-B` to reset if branch already exists from a previous attempt):
 ```bash
-git checkout -b ai/issue-{n}
+git checkout -B ai/issue-{n}
 ```
 5. Implement the plan — follow exactly the files listed in "Files to Create" and "Files to Modify". Match the existing code style. Do not modify files outside the plan scope. Do not touch secrets, CI/CD config, or deployment infrastructure unless the plan explicitly requires it. Implement all tests from the Test Strategy section.
 6. Commit:
@@ -297,6 +345,26 @@ Human review required before merging."
 
 ---
 
+### `unblock [issue number]`
+
+Use when a blocked issue has been resolved and work can resume.
+
+1. Infer repo: `gh repo view --json nameWithOwner --jq '.nameWithOwner'`
+2. Fetch issue: `gh issue view {n} --json title,body,labels`
+3. Verify the issue has the `ai:blocked` label. If not, stop and inform the user.
+4. Remove the blocked label and determine the correct next stage based on the issue's last completed step (check comments for the last AI report):
+   - If triage was completed but not yet planned: `--remove-label "ai:blocked" --add-label "ai:plan"`
+   - If planning was completed but not yet developed: `--remove-label "ai:blocked" --add-label "ai:develop"`
+   - If no previous AI work: `--remove-label "ai:blocked" --add-label "ai:triage"`
+5. Post a comment:
+```bash
+gh issue comment {n} --body "## Issue Unblocked
+
+Blocker resolved. Issue moved to appropriate workflow stage for continued processing."
+```
+
+---
+
 ## Workflow state machine
 
 ```
@@ -304,6 +372,14 @@ ai:triage → human:review-triage → ai:plan → human:review-plan → ai:devel
 ```
 
 Human approval is required at every stage transition. AI must not merge PRs.
+
+### Human approval transitions
+After reviewing AI work, humans should manually update labels to trigger the next stage:
+- **Approve triage**: Remove `human:review-triage`, add `ai:plan`
+- **Request triage changes**: Remove `human:review-triage`, re-add `ai:triage` (or leave for `re-triage`)
+- **Approve plan**: Remove `human:review-plan`, add `ai:develop`
+- **Request plan changes**: Remove `human:review-plan`, re-add `ai:plan` (or leave for `re-plan`)
+- **Blocked**: If human intervention is needed, add `ai:blocked` label
 
 ## Labels reference
 
