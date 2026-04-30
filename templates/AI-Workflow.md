@@ -12,6 +12,51 @@ This repo uses an AI-assisted workflow for issue triage, planning, and developme
 
 ## Commands
 
+### `status`
+
+Print a summary of all open issues grouped by workflow stage.
+
+1. Infer repo: `gh repo view --json nameWithOwner --jq '.nameWithOwner'`
+2. Fetch all open issues in one call:
+```bash
+gh issue list --state open --limit 500 --json number,title,labels
+```
+3. From the result, group issues into the following stages (an issue belongs to the first matching stage):
+
+| Stage | Condition |
+|-------|-----------|
+| Unlabelled — needs triage | `labels` is empty |
+| `ai:triage` — triage in progress | has label `ai:triage` |
+| `human:review-triage` — awaiting triage review | has label `human:review-triage` |
+| `ai:plan` — planning in progress | has label `ai:plan` |
+| `human:review-plan` — awaiting plan review | has label `human:review-plan` |
+| `ai:develop` — development in progress | has label `ai:develop` |
+| `pr:created` — PR open | has label `pr:created` |
+| `ai:blocked` — blocked | has label `ai:blocked` |
+
+4. Print a summary in this format:
+
+```
+## Workflow Status — {owner/repo}
+
+| Stage                              | # | Issues              |
+|------------------------------------|---|---------------------|
+| Unlabelled (needs triage)          | 2 | #12, #15            |
+| ai:triage — in progress            | 1 | #20                 |
+| human:review-triage — awaiting     | 0 | —                   |
+| ai:plan — in progress              | 1 | #8                  |
+| human:review-plan — awaiting       | 0 | —                   |
+| ai:develop — in progress           | 2 | #3, #7              |
+| pr:created — PR open               | 1 | #5                  |
+| ai:blocked — needs intervention    | 0 | —                   |
+
+Total open issues: 7
+```
+
+List issue numbers as `#n` links where possible. Omit stages with 0 issues unless all stages are empty.
+
+---
+
 ### `triage [issue number]` or `triage all`
 
 **Single issue:**

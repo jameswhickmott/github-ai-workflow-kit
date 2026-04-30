@@ -64,6 +64,7 @@ Start a Claude Code or Codex session inside your target repo, then use natural l
 
 | Say this | What happens |
 |----------|-------------|
+| `status` | Fetches all issue by workflow label, and renders a summary table with counts and issue numbers
 | `triage issue 42` | Fetches issue #42, posts a triage report as a GitHub comment, updates labels |
 | `triage all` | Finds all issues labelled `ai:triage` and triages each |
 | `plan issue 42` | Reads the triage report, posts an implementation plan, updates labels |
