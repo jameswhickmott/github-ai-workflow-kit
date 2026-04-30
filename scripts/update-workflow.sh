@@ -33,7 +33,7 @@ trap 'rm -f "$TMPFILE" "$TMPSWAP"' EXIT
 
 # --- Fetch ---
 log "Fetching latest AI-Workflow.md..."
-curl -fsSL "$RAW_URL" -o "$TMPFILE" || err "failed to fetch $RAW_URL"
+curl -fsSL -H "Cache-Control: no-cache" "$RAW_URL" -o "$TMPFILE" || err "failed to fetch $RAW_URL"
 log "Fetched $(wc -l < "$TMPFILE" | tr -d ' ') lines."
 
 # --- Replace the fenced section inside a file ---
