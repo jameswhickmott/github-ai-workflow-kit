@@ -136,7 +136,7 @@ gh api repos/{repo}/issues/{n}/comments --paginate \
 ```
 If no previous triage report exists, stop and tell the user to run `triage` first.
 
-4. Analyse the issue, all comments (including human answers), and the previous triage report. Produce an updated triage report in the same format as `triage`, noting what changed from the previous assessment and whether open questions have been resolved.
+4. Analyse the issue, all comments (including human answers), and the previous triage report. Produce an updated triage report in the same format as `triage`, noting what changed from the previous assessment. For any open questions answered by humans in comments: replace the Open Questions section with `_All resolved — see human responses below:_` followed by each original question (strikethrough) and the human's answer in bold (format: `- ~~Original question?~~ → **Human answer**`). If all open questions are resolved, omit the original open questions list. If no open questions were present or none are answered, retain the original Open Questions section or use `_None identified._` as applicable.
 
 5. Mark the old triage comment as outdated:
 ```bash
