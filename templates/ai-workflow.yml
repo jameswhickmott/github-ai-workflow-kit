@@ -1,0 +1,43 @@
+# AI Workflow Configuration
+# Place this file at .github/ai-workflow.yml in each target repository.
+# All fields are optional — sensible defaults apply when omitted.
+
+# ---------------------------------------------------------------------------
+# AI Provider
+# ---------------------------------------------------------------------------
+
+# Which AI provider to use.
+# Options: claude | openai | codex | aider
+ai_provider: claude
+
+# OpenAI model to use (only relevant for openai, codex, and aider providers).
+# openai_model: gpt-4o
+
+# ---------------------------------------------------------------------------
+# Queue processing
+# ---------------------------------------------------------------------------
+
+# Maximum number of issues the queue processor will handle in a single run.
+# Applies to scheduled and manual workflow_dispatch queue-mode runs.
+max_issues_per_run: 3
+
+# ---------------------------------------------------------------------------
+# Project context (injected into all AI prompts)
+# ---------------------------------------------------------------------------
+
+# One-paragraph description of the project injected into every prompt.
+# Helps the AI understand the domain and produce relevant output.
+# project_context: "A TypeScript monorepo containing a React web app and a Node.js API."
+
+# Comma-separated list of technologies used in the project.
+# Injected into planning and develop prompts.
+# tech_stack: "TypeScript, React, Node.js, PostgreSQL, Jest, Tailwind CSS"
+
+# ---------------------------------------------------------------------------
+# Quality check commands (run after AI development, before PR creation)
+# ---------------------------------------------------------------------------
+# These are non-fatal — failures are noted in the PR body but do not block the PR.
+
+# test_command: npm test
+# build_command: npm run build
+# lint_command: npm run lint

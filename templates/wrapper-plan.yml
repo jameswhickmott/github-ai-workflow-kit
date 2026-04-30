@@ -1,0 +1,51 @@
+# AI Plan Wrapper Workflow
+# Place this file at .github/workflows/ai-plan.yml in each target repository.
+#
+# Triggers when:
+#   - An issue receives the 'ai:plan' label (applied by human after reviewing triage)
+#   - A comment contains '/ai plan'
+#
+# Required secrets in the target repository:
+#   GH_PAT            — GitHub Personal Access Token (for private workflow-kit repo)
+#   ANTHROPIC_API_KEY — Anthropic API key (if using claude provider)
+#   OPENAI_API_KEY    — OpenAI API key (if using openai/codex/aider provider)
+
+name: AI Plan
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+jobs:
+  # Triggered by label
+  plan-on-label:
+    name: Plan on label
+    if: >
+      github.event_name == 'issues' &&
+      github.event.label.name == 'ai:plan'
+    uses: YOUR_ORG/github-ai-workflow-kit/.github/workflows/reusable-ai-plan.yml@main
+    with:
+      issue_number: ${{ github.event.issue.number }}
+      repo: ${{ github.repository }}
+    secrets:
+      GH_PAT: ${{ secrets.GH_PAT }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  # Triggered by /ai plan comment
+  plan-on-comment:
+    name: Plan on comment
+    if: >
+      github.event_name == 'issue_comment' &&
+      contains(github.event.comment.body, '/ai plan') &&
+      github.event.issue.pull_request == null
+    uses: YOUR_ORG/github-ai-workflow-kit/.github/workflows/reusable-ai-plan.yml@main
+    with:
+      issue_number: ${{ github.event.issue.number }}
+      repo: ${{ github.repository }}
+    secrets:
+      GH_PAT: ${{ secrets.GH_PAT }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

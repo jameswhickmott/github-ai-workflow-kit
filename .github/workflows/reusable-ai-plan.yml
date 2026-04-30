@@ -1,0 +1,109 @@
+name: Reusable — AI Plan
+
+# Called by target repositories to run AI planning on an issue.
+# Requires a completed triage comment (<!-- ai:triage-report -->) on the issue.
+#
+# Secrets:
+#   GH_PAT            — Personal Access Token (needed for private workflow-kit repos)
+#   ANTHROPIC_API_KEY — Required when ai_provider: claude
+#   OPENAI_API_KEY    — Required when ai_provider: openai | codex | aider
+
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: Issue number to plan
+        type: number
+        required: true
+      repo:
+        description: Target repository in owner/repo format
+        type: string
+        required: true
+      workflow_kit_repo:
+        description: >
+          Override the workflow kit repository (owner/repo).
+          Defaults to github-ai-workflow-kit in the same org as the target repo.
+        type: string
+        required: false
+        default: ''
+      workflow_kit_ref:
+        description: Branch, tag, or SHA of the workflow kit to use
+        type: string
+        required: false
+        default: 'main'
+    secrets:
+      GH_PAT:
+        description: GitHub Personal Access Token (for private workflow-kit repos)
+        required: false
+      ANTHROPIC_API_KEY:
+        description: Anthropic API key (claude provider)
+        required: false
+      OPENAI_API_KEY:
+        description: OpenAI API key (openai / codex / aider provider)
+        required: false
+
+concurrency:
+  group: ai-plan-${{ inputs.repo }}-${{ inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan Issue #${{ inputs.issue_number }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          token: ${{ secrets.GH_PAT || github.token }}
+          path: target_repo
+
+      - name: Resolve workflow kit repository
+        id: kit
+        run: |
+          if [[ -n "${{ inputs.workflow_kit_repo }}" ]]; then
+            echo "repo=${{ inputs.workflow_kit_repo }}" >> "$GITHUB_OUTPUT"
+          else
+            owner="${{ inputs.repo }}"
+            owner="${owner%%/*}"
+            echo "repo=${owner}/github-ai-workflow-kit" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout workflow kit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.kit.outputs.repo }}
+          ref: ${{ inputs.workflow_kit_ref }}
+          token: ${{ secrets.GH_PAT || github.token }}
+          path: _workflow_kit
+
+      - name: Install AI provider tooling
+        run: |
+          provider=$(grep -m1 "^ai_provider:" target_repo/.github/ai-workflow.yml 2>/dev/null \
+            | sed 's/^ai_provider:[[:space:]]*//' | tr -d '"'"'" | tr -d ' ' \
+            || echo "claude")
+          echo "Provider: $provider"
+          case "$provider" in
+            claude)  npm install -g @anthropic-ai/claude-code ;;
+            aider)   pip install --quiet aider-chat ;;
+            codex)   npm install -g @openai/codex ;;
+            openai)  ;;
+          esac
+
+      - name: Run AI planning
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          REPO: ${{ inputs.repo }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          REPO_DIR: ${{ github.workspace }}/target_repo
+          WORKFLOW_KIT_DIR: ${{ github.workspace }}/_workflow_kit
+        run: |
+          chmod +x _workflow_kit/scripts/ai-common.sh \
+                   _workflow_kit/scripts/ai-plan.sh
+          _workflow_kit/scripts/ai-plan.sh
