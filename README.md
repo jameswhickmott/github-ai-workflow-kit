@@ -6,41 +6,55 @@ Run the AI triage, plan, and develop workflow from a Claude Code or Codex termin
 
 ## Setup
 
-### 1. Clone this kit (once)
+### 1. Add workflow files to your repo
+
+Run this from your project root. It creates or updates `AI-Workflow.md`, `AGENTS.md`, and `CLAUDE.md` — pulling the latest workflow directly from this repo:
 
 ```bash
-git clone https://github.com/your-org/github-ai-workflow-kit ~/GitHub/github-ai-workflow-kit
+curl -fsSL https://raw.githubusercontent.com/jameswhickmott/github-ai-workflow-kit/main/scripts/update-workflow.sh | bash
 ```
 
-### 2. Add workflow instructions to your target repo
+- **`AI-Workflow.md`** — the workflow instructions (created or replaced)
+- **`AGENTS.md`** — workflow block inserted if markers present, appended if not, created if absent
+- **`CLAUDE.md`** — `@AI-Workflow.md` import prepended if missing, created if absent
 
-If `CLAUDE.md` / `AGENTS.md` don't exist yet, copy them:
+If `AGENTS.md` already contains project-specific content, add these markers around the section where you want the workflow to live and re-run the script — only that section will be replaced on future updates:
+
+```md
+<!-- ai-workflow:start -->
+...workflow content...
+<!-- ai-workflow:end -->
+```
+
+### 2. Bootstrap labels (first time only)
 
 ```bash
-cp ~/GitHub/github-ai-workflow-kit/templates/CLAUDE.md  your-repo/CLAUDE.md
-cp ~/GitHub/github-ai-workflow-kit/templates/AGENTS.md  your-repo/AGENTS.md
+curl -fsSL https://raw.githubusercontent.com/jameswhickmott/github-ai-workflow-kit/main/scripts/bootstrap-labels.sh | bash -s owner/your-repo
 ```
 
-If they already exist, append instead:
-
-```bash
-cat ~/GitHub/github-ai-workflow-kit/templates/CLAUDE.md >> your-repo/CLAUDE.md
-cat ~/GitHub/github-ai-workflow-kit/templates/AGENTS.md >> your-repo/AGENTS.md
-```
-
-### 3. Bootstrap labels (first time only)
-
-```bash
-~/GitHub/github-ai-workflow-kit/scripts/bootstrap-labels.sh owner/your-repo
-```
-
-### 4. Authenticate gh CLI
+### 3. Authenticate gh CLI
 
 ```bash
 gh auth login
 ```
 
 That's it. No API keys. No additional config.
+
+---
+
+## Keeping the workflow up to date
+
+Re-run the same command from your project root to pull the latest workflow changes:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jameswhickmott/github-ai-workflow-kit/main/scripts/update-workflow.sh | bash
+```
+
+To update a single file only:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/jameswhickmott/github-ai-workflow-kit/main/scripts/update-workflow.sh) AGENTS.md
+```
 
 ---
 
