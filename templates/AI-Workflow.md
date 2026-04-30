@@ -84,22 +84,30 @@ Use when a human has answered open questions in comments and triage needs to be 
 ```bash
 gh issue view {n} --json title,body,comments
 ```
-3. Retrieve the previous triage report:
+3. Retrieve the previous triage report comment ID and body:
 ```bash
 gh api repos/{repo}/issues/{n}/comments --paginate \
-  --jq '[.[] | select(.body | contains("<!-- ai:triage-report -->"))] | last | .body'
+  --jq '[.[] | select(.body | contains("<!-- ai:triage-report -->"))] | last | {id: .id, body: .body}'
 ```
 If no previous triage report exists, stop and tell the user to run `triage` first.
 
 4. Analyse the issue, all comments (including human answers), and the previous triage report. Produce an updated triage report in the same format as `triage`, noting what changed from the previous assessment and whether open questions have been resolved.
 
-5. Post the updated report as a comment:
+5. Mark the old triage comment as outdated:
+```bash
+gh api repos/{repo}/issues/comments/{prev_comment_id} --method PATCH \
+  -f body="<!-- ai:triage-report:outdated -->
+
+> ⚠️ **Outdated** — superseded by retriage. See the updated report below."
+```
+
+6. Post the updated report as a new comment:
 ```bash
 gh issue comment {n} --body "<!-- ai:triage-report -->
 
 {report}"
 ```
-6. Transition labels:
+7. Transition labels:
 ```bash
 gh issue edit {n} --add-label "human:review-triage"
 ```
