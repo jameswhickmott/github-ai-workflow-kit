@@ -21,7 +21,7 @@ When executing `gh` or `git` commands, handle common failures:
 - **Git branch conflicts**: If `git checkout -b` fails because the branch exists, use `git checkout -B` to reset it (as done in `develop` command)
 - **Irrecoverable failures**: If a workflow step fails and cannot be resolved, set the `ai:blocked` label on the issue and post a comment with error details
 - **Duplicate comment prevention**: For all commands (`triage`, `retriage`, `plan`, `replan`), update the existing `<!-- ai:triage-report -->` / `<!-- ai:plan-report -->` comment if present, instead of creating a new one. `retriage` updates triage reports, `replan` updates plan reports.
-- **Batch limits**: For `triage all`, `plan all`, `develop all`, `review-pr all`, process a maximum of 3 items at a time unless the user explicitly requests a higher limit.
+- **Batch limits**: For `triage all`, `plan all`, `develop all`, `review-pr all`, process a maximum of 5 items at a time unless the user explicitly requests a higher limit.
 
 ---
 
