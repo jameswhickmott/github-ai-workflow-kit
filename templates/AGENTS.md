@@ -577,6 +577,40 @@ fi
 
 ---
 
+### `work [issue number]`
+
+Interactive single-issue guided workflow. Runs each stage in sequence within the current chat session, pausing for human approval at every stage boundary. All GitHub label updates and comments are written at each step — if the session ends, the issue is in a consistent state and can be resumed with individual commands (`plan`, `develop`, etc.).
+
+**Stage 1 — Triage:**
+1. Run the full `triage` command on the issue (posts report comment, updates labels on GitHub as normal).
+2. Display the triage report in chat.
+3. If the recommendation is `reject`: ask the user to type `confirm-reject` to accept (they must close the issue on GitHub manually), or provide feedback to revise.
+4. Otherwise ask: _"Triage complete — type **approve** to proceed to planning, or reply with feedback to revise."_
+   - `approve` → proceed to Stage 2
+   - Any other text → treat as triage feedback, incorporate it and run `retriage` with the feedback folded in, then loop back to step 2
+
+**Stage 2 — Planning:**
+1. Transition labels on GitHub as a human approver would: remove `human:review-triage`, add `ai:plan`.
+2. Run the full `plan` command (posts plan comment, updates labels on GitHub as normal).
+3. Display the plan in chat.
+4. Ask: _"Plan complete — type **approve** to proceed to development, or reply with feedback to revise."_
+   - `approve` → proceed to Stage 3
+   - Any other text → treat as plan feedback, incorporate it and run `replan` with the feedback folded in, then loop back to step 3
+
+**Stage 3 — Development:**
+1. Transition labels on GitHub: remove `human:review-plan`, add `ai:develop`.
+2. Run the full `develop` command (creates branch, implements, commits, pushes, opens PR on GitHub as normal).
+3. Run `review-pr` on the new PR.
+4. Display the PR URL and AI review report in chat.
+5. Inform the user: _"PR created and AI-reviewed. Merging requires your manual approval on GitHub — AI cannot merge."_
+
+**Session rules:**
+- At any point, if the user types `stop` or `pause`, halt immediately and leave GitHub in its current label state.
+- Open questions from triage can be answered directly in chat — the answer is folded into `retriage` rather than requiring a GitHub comment.
+- All GitHub writes happen immediately at each step, so state is always recoverable.
+
+---
+
 ### `unblock [issue number]`
 
 Use when a blocked issue has been resolved and work can resume.
