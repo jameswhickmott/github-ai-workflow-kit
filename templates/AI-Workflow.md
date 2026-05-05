@@ -10,6 +10,19 @@ This repo uses an AI-assisted workflow for issue triage, planning, and developme
 
 ---
 
+## Chat-Initiated Changes
+
+**Any change requested during a chat conversation must be captured as a GitHub issue before implementation begins.** This applies to all changes regardless of size — bug fixes, features, refactors, documentation updates, or configuration changes.
+
+When a user asks for a change during chat:
+1. Run `create-issue` to capture the request as a GitHub issue and label it `ai:triage`
+2. Run `triage` on the new issue immediately
+3. Do not implement anything until the human approves triage and the workflow proceeds through planning and development
+
+This ensures all changes are tracked, reviewed, and implemented consistently through the workflow.
+
+---
+
 ## Commands
 
 ### Error Handling
@@ -57,6 +70,37 @@ Ensure `origin` points to the correct GitHub repo.
 gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'
 ```
 7. Print success message: "✅ Workflow setup complete. All labels created, gh authenticated, git state clean."
+
+---
+
+### `create-issue`
+
+Use whenever a change is requested during a chat conversation. Creates a GitHub issue capturing the request and immediately enters the triage workflow. **Do not implement any change without first creating an issue.**
+
+1. Infer repo: `gh repo view --json nameWithOwner --jq '.nameWithOwner'`
+2. Derive a concise issue title (max 72 chars) and a body from the user's request. The body should include:
+   - **What was requested** — a clear description of the change
+   - **Context from chat** — any relevant details the user provided
+   - **Source** — note that this issue was created from a chat request
+3. Create the issue with the `ai:triage` label:
+```bash
+issue_url=$(gh issue create \
+  --title "{title}" \
+  --body "{body}
+
+---
+*Created from chat request — entering AI workflow.*" \
+  --label "ai:triage" \
+  --repo {repo} \
+  --json url --jq '.url')
+issue_number=$(gh issue list --label "ai:triage" --limit 1 --json number --jq '.[0].number')
+echo "Created issue #${issue_number}: ${issue_url}"
+```
+4. Immediately run the `triage` command on the new issue number.
+5. Inform the user:
+   - Issue number and URL
+   - That triage has been completed and is awaiting their review
+   - That implementation will not begin until they approve the triage report and plan
 
 ---
 
