@@ -78,11 +78,16 @@ gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'
 Use whenever a change is requested during a chat conversation. Creates a GitHub issue capturing the request and immediately enters the triage workflow. **Do not implement any change without first creating an issue.**
 
 1. Infer repo: `gh repo view --json nameWithOwner --jq '.nameWithOwner'`
-2. Derive a concise issue title (max 72 chars) and a body from the user's request. The body should include:
+2. Derive a concise issue title (max 72 chars) and keywords from the user's request, then search for potential duplicates before creating anything:
+```bash
+gh issue list --state open --search "{keywords}" --json number,title,labels --limit 10
+```
+If any results are returned, display them to the user and ask: _"The following open issues may overlap — is this a duplicate? Reply **yes** to cancel or **no** to continue creating the issue."_ If the user confirms a duplicate, stop. If they say no (or there are no matches), proceed.
+3. Derive the full issue body. It should include:
    - **What was requested** — a clear description of the change
    - **Context from chat** — any relevant details the user provided
    - **Source** — note that this issue was created from a chat request
-3. Create the issue with the `ai:triage` label:
+4. Create the issue with the `ai:triage` label:
 ```bash
 issue_url=$(gh issue create \
   --title "{title}" \
@@ -96,8 +101,8 @@ issue_url=$(gh issue create \
 issue_number=$(gh issue list --label "ai:triage" --limit 1 --json number --jq '.[0].number')
 echo "Created issue #${issue_number}: ${issue_url}"
 ```
-4. Immediately run the `triage` command on the new issue number.
-5. Inform the user:
+5. Immediately run the `triage` command on the new issue number.
+6. Inform the user:
    - Issue number and URL
    - That triage has been completed and is awaiting their review
    - That implementation will not begin until they approve the triage report and plan
@@ -161,7 +166,12 @@ List issue numbers as `#n` links where possible. Omit stages with 0 issues unles
 1. Infer repo: `gh repo view --json nameWithOwner --jq '.nameWithOwner'`
 2. Fetch issue: `gh issue view {n} --json title,body`
 3. Check label guard: proceed if the issue has `ai:triage` label OR has no labels at all. Skip if it has other labels but not `ai:triage` (unless the user explicitly named this issue).
-4. Analyse the issue and produce a triage report in this exact format:
+4. Search for related and potentially blocking open issues:
+```bash
+gh issue list --state open --search "{keywords from issue title}" --json number,title,labels --limit 20
+```
+Exclude the current issue number from results. Analyse each result to classify its relationship: `potential duplicate`, `blocks this issue`, `blocked by this issue`, or `related`. Use issue titles and labels to infer directionality — e.g. an issue describing a prerequisite dependency blocks this one; an issue tracking the same symptom is a potential duplicate.
+5. Analyse the issue and produce a triage report in this exact format:
 
 ```
 ## AI Triage Report
@@ -183,6 +193,13 @@ One paragraph describing what the issue is asking for.
 
 ### Open Questions
 Ambiguities or missing context needed before implementation. If none: _None identified._
+
+### Related Issues
+| # | Title | Relationship |
+|---|-------|-------------|
+| #n | Title | potential duplicate / **blocks this issue** / blocked by this issue / related |
+
+If none found: _None identified._
 
 ### Suggested Labels
 Labels to apply beyond workflow labels (e.g. `type:bug`, `priority:high`). If none: _None._
@@ -214,15 +231,24 @@ else
 fi
 ```
 
-6. Transition labels based on triage recommendation:
+6. Transition labels based on triage recommendation AND blocker status:
+   - If any issue in the Related Issues section is classified as **blocks this issue**: apply `ai:blocked` instead of proceeding, and post a comment listing the blocking issues:
 ```bash
-# Extract recommendation decision from report
-decision=$(echo "{report}" | grep -A1 "**Decision:**" | tail -1 | tr -d ' ')
-if [ "$decision" = "reject" ]; then
-  gh issue edit {n} --remove-label "ai:triage" --add-label "human:review-close"
-else
-  gh issue edit {n} --remove-label "ai:triage" --add-label "human:review-triage"
-fi
+gh issue edit {n} --remove-label "ai:triage" --add-label "ai:blocked" || true
+gh issue comment {n} --body "## Blocked — Prerequisite Issues Outstanding
+
+This issue cannot proceed until the following issues are resolved:
+{list of blocking issue numbers and titles}
+
+Re-run \`triage\` or \`retriage\` once blockers are resolved, or run \`unblock\` if blockers have since been closed."
+```
+   - Otherwise, if recommendation is `reject`:
+```bash
+gh issue edit {n} --remove-label "ai:triage" --add-label "human:review-close" || true
+```
+   - Otherwise:
+```bash
+gh issue edit {n} --remove-label "ai:triage" --add-label "human:review-triage" || true
 ```
 
 **`triage all`:** Get all issues needing triage — those with `ai:triage` label plus any with no labels at all:
@@ -279,15 +305,16 @@ gh issue edit {n} --add-label "human:review-triage"
 ### `plan [issue number]` or `plan all`
 
 **Single issue:**
-1. Fetch issue: `gh issue view {n} --json title,body`
-2. Retrieve the triage report: find the comment containing `<!-- ai:triage-report -->` via:
+1. Fetch issue: `gh issue view {n} --json title,body,labels`
+2. Check for blockers: if the issue has the `ai:blocked` label, stop and inform the user — _"Issue #{n} is blocked. Resolve the prerequisite issues listed in the issue comments, then run `unblock {n}` before planning."_
+3. Retrieve the triage report: find the comment containing `<!-- ai:triage-report -->` via:
 ```bash
 gh api repos/{repo}/issues/{n}/comments --paginate \
   --jq '[.[] | select(.body | contains("<!-- ai:triage-report -->"))] | last | .body'
 ```
 If no triage report exists, stop and tell the user triage must be completed first.
 
-3. Analyse the issue and triage report, then produce an implementation plan in this exact format:
+4. Analyse the issue and triage report, then produce an implementation plan in this exact format:
 
 ```
 ## AI Implementation Plan
@@ -338,7 +365,7 @@ trivial | small | medium | large
 *AI Implementation Plan — human review required before development begins*
 ```
 
-4. Check for existing active plan report comment and post/update:
+5. Check for existing active plan report comment and post/update:
 ```bash
 # Check for existing non-outdated plan report
 existing_comment=$(gh api repos/{repo}/issues/{n}/comments --paginate \
@@ -357,7 +384,7 @@ else
 fi
 ```
 
-5. Transition labels:
+6. Transition labels:
 ```bash
 gh issue edit {n} --remove-label "ai:plan" --add-label "human:review-plan"
 ```
@@ -408,10 +435,11 @@ gh issue edit {n} --add-label "human:review-plan"
 ### `develop [issue number]` or `develop all`
 
 **Single issue:**
-1. Fetch issue: `gh issue view {n} --json title,body`
-2. Retrieve the plan report: find the comment containing `<!-- ai:plan-report -->` (same API call as above). If missing, stop and tell the user planning must be completed first.
-3. Get default branch: `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'`
-4. Sync with remote default branch:
+1. Fetch issue: `gh issue view {n} --json title,body,labels`
+2. Check for blockers: if the issue has the `ai:blocked` label, stop and inform the user — _"Issue #{n} is blocked. Resolve the prerequisite issues listed in the issue comments, then run `unblock {n}` before developing."_
+3. Retrieve the plan report: find the comment containing `<!-- ai:plan-report -->` (same API call as above). If missing, stop and tell the user planning must be completed first.
+5. Get default branch: `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'`
+6. Sync with remote default branch:
 ```bash
 git status --short
 if [ -n "$(git status --short)" ]; then
@@ -426,14 +454,14 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 ```
-5. Generate branch name with slug:
+7. Generate branch name with slug:
 ```bash
 slug=$(echo "{issue title}" | tr '[:upper:]' '[:lower:]' | tr -s ' ' '-' | tr -cd 'a-z0-9-' | cut -c1-20)
 branch="ai/issue-{n}-${slug}"
 git checkout -B "${branch}"
 ```
-6. Implement the plan — follow exactly the files listed in "Files to Create" and "Files to Modify". Match the existing code style. Do not modify files outside the plan scope. Do not touch secrets, CI/CD config, or deployment infrastructure unless the plan explicitly requires it. Implement all tests from the Test Strategy section.
-7. Run tests:
+8. Implement the plan — follow exactly the files listed in "Files to Create" and "Files to Modify". Match the existing code style. Do not modify files outside the plan scope. Do not touch secrets, CI/CD config, or deployment infrastructure unless the plan explicitly requires it. Implement all tests from the Test Strategy section.
+9. Run tests:
 ```bash
 # Detect test command
 test_cmd=""
@@ -457,7 +485,7 @@ AI implementation for issue #{n} failed tests. Blocking issue."
   fi
 fi
 ```
-8. Commit:
+10. Commit:
 ```bash
 git add -A
 git commit -m "feat: AI implementation for issue #{n}
@@ -466,11 +494,11 @@ git commit -m "feat: AI implementation for issue #{n}
 
 Co-authored-by: AI Workflow Bot <ai-workflow@noreply.github.com>"
 ```
-9. Push:
+11. Push:
 ```bash
 git push origin "${branch}"
 ```
-10. Create PR:
+12. Create PR:
 ```bash
 pr_url=$(gh pr create \
   --title "feat: issue #{n} - {issue title}" \
@@ -492,7 +520,7 @@ AI-generated implementation for: **{issue title}**
   --head "${branch}" \
   --base "{default branch}" --json url --jq '.url')
 ```
-11. Check PR status:
+13. Check PR status:
 ```bash
 pr_number=$(gh pr view --head "${branch}" --json number --jq '.number')
 gh pr checks ${pr_number}
@@ -508,7 +536,7 @@ elif echo "$checks_status" | grep -q "fail"; then
 PR #{pr_number} has failed checks. Blocking issue."
 fi
 ```
-12. Transition labels and post a comment:
+14. Transition labels and post a comment:
 ```bash
 gh issue edit {n} --remove-label "ai:develop" --add-label "pr:created"
 gh issue comment {n} --body "## AI Development Complete
@@ -590,12 +618,13 @@ Interactive single-issue guided workflow. Runs each stage in sequence within the
    - Any other text → treat as triage feedback, incorporate it and run `retriage` with the feedback folded in, then loop back to step 2
 
 **Stage 2 — Planning:**
-1. Transition labels on GitHub as a human approver would: remove `human:review-triage`, add `ai:plan`.
-2. Run the full `plan` command (posts plan comment, updates labels on GitHub as normal).
-3. Display the plan in chat.
-4. Ask: _"Plan complete — type **approve** to proceed to development, or reply with feedback to revise."_
+1. Before proceeding, check if the issue was labelled `ai:blocked` by the triage step (i.e. blocking issues were identified). If so, halt and display: _"Issue is blocked by prerequisite issues identified during triage (see above). Resolve them first, then run `unblock {n}` and restart with `work {n}`."_ Do not continue.
+2. Transition labels on GitHub as a human approver would: remove `human:review-triage`, add `ai:plan`.
+3. Run the full `plan` command (posts plan comment, updates labels on GitHub as normal).
+4. Display the plan in chat.
+5. Ask: _"Plan complete — type **approve** to proceed to development, or reply with feedback to revise."_
    - `approve` → proceed to Stage 3
-   - Any other text → treat as plan feedback, incorporate it and run `replan` with the feedback folded in, then loop back to step 3
+   - Any other text → treat as plan feedback, incorporate it and run `replan` with the feedback folded in, then loop back to step 4
 
 **Stage 3 — Development:**
 1. Transition labels on GitHub: remove `human:review-plan`, add `ai:develop`.
