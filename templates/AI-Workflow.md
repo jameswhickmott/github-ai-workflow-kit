@@ -231,7 +231,8 @@ else
 fi
 ```
 
-6. Transition labels based on triage recommendation AND blocker status:
+6. Display the triage report in chat as rendered markdown so the user can read it without switching to GitHub.
+7. Transition labels based on triage recommendation AND blocker status:
    - If any issue in the Related Issues section is classified as **blocks this issue**: apply `ai:blocked` instead of proceeding, and post a comment listing the blocking issues:
 ```bash
 gh issue edit {n} --remove-label "ai:triage" --add-label "ai:blocked" || true
@@ -295,7 +296,8 @@ gh issue comment {n} --body "<!-- ai:triage-report -->
 
 {report}"
 ```
-7. Transition labels:
+7. Display the updated triage report in chat as rendered markdown.
+8. Transition labels:
 ```bash
 gh issue edit {n} --add-label "human:review-triage"
 ```
@@ -384,7 +386,8 @@ else
 fi
 ```
 
-6. Transition labels:
+6. Display the plan in chat as rendered markdown so the user can review it without switching to GitHub.
+7. Transition labels:
 ```bash
 gh issue edit {n} --remove-label "ai:plan" --add-label "human:review-plan"
 ```
@@ -425,7 +428,8 @@ gh issue comment {n} --body "<!-- ai:plan-report -->
 
 {plan}"
 ```
-7. Transition labels (ensure it is still awaiting human review):
+7. Display the updated plan in chat as rendered markdown.
+8. Transition labels (ensure it is still awaiting human review):
 ```bash
 gh issue edit {n} --add-label "human:review-plan"
 ```
@@ -592,7 +596,8 @@ gh pr comment {n} --body "<!-- ai:pr-review-report -->
 
 {report}"
 ```
-8. Transition labels:
+8. Display the PR review report in chat as rendered markdown.
+9. Transition labels:
 ```bash
 gh pr edit {n} --remove-label "pr:created" --remove-label "ai:review" --add-label "human:final-review"
 if [ "{recommendation_decision}" = "block" ]; then
