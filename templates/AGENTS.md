@@ -259,7 +259,7 @@ gh issue list --label "ai:triage" --state open --json number --jq '.[].number'
 # Issues with no labels (unlabelled = needs triage)
 gh issue list --state open --json number,labels --jq '[.[] | select(.labels | length == 0) | .number][]'
 ```
-Deduplicate and process each. Process a maximum of 3 issues at a time unless the user explicitly requests more.
+Deduplicate and process each. Process a maximum of 5 issues at a time unless the user explicitly requests more.
 
 ---
 
@@ -389,7 +389,7 @@ fi
 gh issue edit {n} --remove-label "ai:plan" --add-label "human:review-plan"
 ```
 
-**`plan all`:** Run `gh issue list --label "ai:plan" --state open --json number --jq '.[].number'` then process each. Process a maximum of 3 issues at a time unless the user explicitly requests more.
+**`plan all`:** Run `gh issue list --label "ai:plan" --state open --json number --jq '.[].number'` then process each. Process a maximum of 5 issues at a time unless the user explicitly requests more.
 
 ---
 
@@ -547,7 +547,7 @@ Branch: \`${branch}\`
 Human review required before merging. AI must not merge this PR."
 ```
 
-**`develop all`:** Run `gh issue list --label "ai:develop" --state open --json number --jq '.[].number'` then process each. Process a maximum of 3 issues at a time unless the user explicitly requests more.
+**`develop all`:** Run `gh issue list --label "ai:develop" --state open --json number --jq '.[].number'` then process each. Process a maximum of 5 issues at a time unless the user explicitly requests more.
 
 ---
 
@@ -601,7 +601,7 @@ fi
 ```
 9. If checks failed, add `ai:blocked` label to linked issue.
 
-**`review-pr all`:** Run `gh pr list --label "pr:created" --state open --json number --jq '.[].number'` then process each. Process a maximum of 3 PRs at a time unless the user explicitly requests more.
+**`review-pr all`:** Run `gh pr list --label "pr:created" --state open --json number --jq '.[].number'` then process each. Process a maximum of 5 PRs at a time unless the user explicitly requests more.
 
 ---
 
